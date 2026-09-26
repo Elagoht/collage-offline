@@ -19,7 +19,9 @@ import (
 )
 
 type setup struct {
-	dev    bool
+	dev bool
+	// build is Config.Cache.Version, what Host.BuildID names the build by.
+	build  string
 	config map[string]json.RawMessage
 	pages  []*collage.Page
 }
@@ -34,7 +36,7 @@ func site(t *testing.T, p *offline.Plugin, s setup) (*collage.App, error) {
 			"t/n.html":       {Data: []byte(`<html><head>{{offlineScript "abc\"d"}}</head><body>nonce</body></html>`)},
 			"t/offline.html": {Data: []byte(`<html><body>You are offline.</body></html>`)},
 		}, Root: "t"},
-		Cache:        collage.CacheConfig{Enabled: true, Type: "memory", DefaultTTL: time.Hour},
+		Cache:        collage.CacheConfig{Enabled: true, Type: "memory", DefaultTTL: time.Hour, Version: s.build},
 		Plugins:      []collage.Plugin{p},
 		PluginConfig: s.config,
 	})
@@ -164,9 +166,13 @@ func TestWorkerIsValidJavaScript(t *testing.T) {
 }
 
 func TestCacheVersion(t *testing.T) {
-	version := func(opts offline.Options) string {
+	version := func(opts offline.Options, build ...string) string {
 		p := offline.New(opts)
-		app := mustSite(t, p, setup{})
+		s := setup{}
+		if len(build) > 0 {
+			s.build = build[0]
+		}
+		app := mustSite(t, p, s)
 		v := readConfig(t, get(app, "/sw.js").Body.String()).Version
 		if v != p.CacheVersion() {
 			t.Errorf("CacheVersion() = %q, the worker says %q", p.CacheVersion(), v)
@@ -183,11 +189,21 @@ func TestCacheVersion(t *testing.T) {
 	if base == version(offline.Options{Precache: []string{"/", "/offline"}, Version: "build-1"}) {
 		t.Error("new options kept the version")
 	}
-	// Without a Version, the build is named by the binary, and stays the same
-	// across starts of the same one.
+	// Without a Version, the build is collage's: a fingerprint of the binary,
+	// the same across starts of the same one.
 	derived := version(offline.Options{})
 	if derived == "" || derived != version(offline.Options{}) {
 		t.Errorf("derived version %q is empty or unstable", derived)
+	}
+	// Config.Cache.Version names the build when it is set, and a new one is a
+	// new cache version.
+	release := version(offline.Options{}, "release-1")
+	if release == derived || release != version(offline.Options{}, "release-1") || release == version(offline.Options{}, "release-2") {
+		t.Error("the version does not follow Config.Cache.Version")
+	}
+	// Options.Version overrides it.
+	if version(offline.Options{Version: "build-1"}, "release-1") != version(offline.Options{Version: "build-1"}, "release-2") {
+		t.Error("Options.Version did not override the application's build")
 	}
 }
 

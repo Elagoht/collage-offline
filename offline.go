@@ -38,13 +38,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io"
 	"net/http"
-	"os"
-	"runtime/debug"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/Elagoht/collage/pkg/collage"
 )
@@ -84,8 +79,8 @@ type Options struct {
 	// the oldest. Default 50 and 200; negative keeps everything.
 	MaxPages  int `json:"maxPages"`
 	MaxAssets int `json:"maxAssets"`
-	// Version names the application's build in the cache version. Empty derives
-	// it from the binary; see the README for how, and when to set it yourself.
+	// Version names the application's build in the cache version. Empty uses
+	// collage's Host.BuildID; see the README for when to set it yourself.
 	Version string `json:"version"`
 	// InDev serves the real worker, and renders {{offlineScript}}, in
 	// development too.
@@ -105,7 +100,7 @@ type Plugin struct {
 func New(opts Options) *Plugin { return &Plugin{opts: opts} }
 
 func (p *Plugin) Name() string                   { return Name }
-func (p *Plugin) Version() string                { return "0.1.0" }
+func (p *Plugin) Version() string                { return "0.1.1" }
 func (p *Plugin) Shutdown(context.Context) error { return nil }
 
 var (
@@ -178,9 +173,11 @@ func (p *Plugin) Init(_ context.Context, host collage.Host) error {
 	}
 	body := []byte(retireSource)
 	if p.active {
+		// collage names the build: Config.Cache.Version, or a fingerprint of the
+		// executable, the same value its disk cache is namespaced by.
 		build := p.opts.Version
 		if build == "" {
-			build = buildID()
+			build = host.BuildID()
 		}
 		var err error
 		if body, err = p.worker(build); err != nil {
@@ -263,48 +260,6 @@ func (p *Plugin) worker(build string) ([]byte, error) {
 	}
 	p.version = config.Version
 	return []byte(strings.Replace(workerSource, configMarker, string(final), 1)), nil
-}
-
-// buildID names the running build: what makes one deployment's worker differ from
-// the last one's, even when nobody changed the options.
-//
-// The VCS revision the toolchain stamps into the binary is the best name, when the
-// tree it was built from was clean; a module version is next. A binary built from
-// a modified tree, or without VCS information — go run, a tarball, a Docker build
-// that did not copy .git — is named by a hash of its own bytes. When even the
-// executable cannot be read, the start time is used, which is never wrong but
-// empties the visitors' caches on every restart.
-func buildID() string {
-	if info, ok := debug.ReadBuildInfo(); ok {
-		var revision string
-		modified := false
-		for _, s := range info.Settings {
-			switch s.Key {
-			case "vcs.revision":
-				revision = s.Value
-			case "vcs.modified":
-				modified = s.Value == "true"
-			}
-		}
-		if !modified {
-			if revision != "" {
-				return "vcs:" + revision
-			}
-			if v := info.Main.Version; v != "" && v != "(devel)" && !strings.Contains(v, "+dirty") {
-				return "module:" + info.Main.Path + "@" + v
-			}
-		}
-	}
-	if exe, err := os.Executable(); err == nil {
-		if f, err := os.Open(exe); err == nil {
-			defer f.Close()
-			sum := sha256.New()
-			if _, err := io.Copy(sum, f); err == nil {
-				return "exe:" + hex.EncodeToString(sum.Sum(nil))
-			}
-		}
-	}
-	return "start:" + strconv.FormatInt(time.Now().UnixNano(), 10)
 }
 
 // CacheVersion is the version the worker names its caches after, or empty in

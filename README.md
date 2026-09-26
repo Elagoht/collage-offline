@@ -22,7 +22,7 @@ and the layout registers the worker:
 </head>
 ```
 
-Requires collage v0.23.0 or later. Register it in `Config.Plugins`: it adds a
+Requires collage v0.24.0 or later. Register it in `Config.Plugins`: it adds a
 template function, which only a plugin registered there can. Registering the plugin
 serves `/sw.js`; nothing is installed in a browser until a page renders
 `{{offlineScript}}`.
@@ -63,20 +63,13 @@ opens (`/sw.js` is served `Cache-Control: no-cache` with an `ETag`, so the check
 usually a `304`). The new worker installs, takes over at once, and deletes every
 cache the old one filled.
 
-collage has no notion of a build of its own, so the plugin names one from the
-binary:
+The build is `Options.Version` when you set it — a release tag, a commit hash from
+CI — and otherwise collage's own `Host.BuildID`: the application's
+`Config.Cache.Version` when it has one, or a fingerprint of the executable, the
+same value collage namespaces its disk cache by. A new binary is a new build.
 
-1. `Options.Version`, when you set it — a release tag, a commit hash from CI.
-2. Otherwise the VCS revision Go stamps into a binary built from a clean checkout.
-3. Otherwise the module version, for a binary installed with `go install`.
-4. Otherwise — a binary built from a modified tree, or without `.git` at hand, as a
-   Docker build often is — a SHA-256 of the executable's own bytes, read once at
-   startup.
-5. Should even the executable be unreadable, the start time, which is never wrong
-   but empties every visitor's caches on each restart.
-
-Set `Version` when anything that changes what visitors should see is **not** in the
-binary: templates or static files read from disk rather than embedded. Pages are
+Set `Version`, or `Config.Cache.Version` for collage as a whole, when anything that
+changes what visitors should see is **not** in the binary: templates or static files read from disk rather than embedded. Pages are
 fetched network-first, so they stay fresh whatever the version; what a stale
 version keeps is precached pages and stale-while-revalidate files one visit
 longer, and old caches that are never dropped.
@@ -111,7 +104,7 @@ which works with `elagoht/secure`'s `{{cspNonce}}`. A policy that also restricts
 | `Assets` | `["/static/"]` | Path prefixes served stale-while-revalidate. An empty list keeps only content-hashed URLs |
 | `MaxPages` | `50` | How many pages the worker keeps. Negative keeps every one |
 | `MaxAssets` | `200` | How many static files the worker keeps. Negative keeps every one |
-| `Version` | from the binary | Names the application's build in the cache version; see above |
+| `Version` | collage's build ID | Names the application's build in the cache version; see above |
 | `InDev` | `false` | Serve the real worker, and render `{{offlineScript}}`, in development |
 
 Every path must begin with a single `/`. A path on another origin, one of collage's
@@ -165,3 +158,13 @@ only when that copy expires.
   them under this worker too.
 - **The static-build headers are yours.** `Service-Worker-Allowed` and
   `Cache-Control: no-cache` are set by the server; a static host sends its own.
+
+## Changes
+
+### v0.1.1
+
+- The build in the cache version is collage v0.24.0's `Host.BuildID` —
+  `Config.Cache.Version`, or a fingerprint of the executable — unless
+  `Options.Version` is set. The plugin's own chain of VCS revision, module
+  version, executable hash and start time is gone.
+- Requires collage v0.24.0.
