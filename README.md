@@ -161,6 +161,12 @@ only when that copy expires.
 
 ## Changes
 
+### v0.1.2
+
+- `collage.json`: the plugin described to editors — its template functions,
+  snippets and configuration schema — for the Collage Snippets & Highlighter
+  extension and any tool reading it.
+
 ### v0.1.1
 
 - The build in the cache version is collage v0.24.0's `Host.BuildID` —

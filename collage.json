@@ -1,0 +1,53 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Elagoht/collage-snippets-highlighter/main/schemas/collage-plugin-manifest.schema.json",
+  "name": "elagoht/offline",
+  "description": "A collage plugin that serves a service worker, so the pages a visitor has read open again without a network.",
+  "repository": "https://github.com/Elagoht/collage-offline",
+  "templateFunctions": [
+    {
+      "name": "offlineScript",
+      "signature": "offlineScript [nonce]",
+      "insert": "offlineScript",
+      "doc": "Registers the service worker that keeps visited pages available offline. Renders nothing in development. With a CSP: `{{offlineScript cspNonce}}`."
+    }
+  ],
+  "config": {
+    "type": "object",
+    "description": "A collage plugin that serves a service worker, so the pages a visitor has read open again without a network.",
+    "properties": {
+      "assets": {
+        "type": "array",
+        "description": "Assets are the path prefixes of the static files served stale-while-revalidate. Default [\"/static/\"]; an empty list keeps only the content-hashed URLs, which are always cached.",
+        "items": {
+          "type": "string"
+        }
+      },
+      "fallback": {
+        "type": "string",
+        "description": "Fallback is the path of the page shown for a page that is neither reachable nor kept: \"/offline\". It is precached, and a worker that cannot fetch it does not install. Empty shows the browser's own offline error."
+      },
+      "inDev": {
+        "type": "boolean",
+        "description": "InDev serves the real worker, and renders {{offlineScript}}, in development too."
+      },
+      "maxAssets": {
+        "type": "integer"
+      },
+      "maxPages": {
+        "type": "integer",
+        "description": "MaxPages and MaxAssets cap how many responses each cache keeps, dropping the oldest. Default 50 and 200; negative keeps everything."
+      },
+      "precache": {
+        "type": "array",
+        "description": "Precache are paths fetched when the worker installs, so they open offline before anyone has visited them: \"/\", \"/about\", \"/static/app.css\". Each is best effort; one that fails is logged in the browser's console and the rest are kept.",
+        "items": {
+          "type": "string"
+        }
+      },
+      "version": {
+        "type": "string",
+        "description": "Version names the application's build in the cache version. Empty uses collage's Host.BuildID; see the README for when to set it yourself."
+      }
+    }
+  }
+}
