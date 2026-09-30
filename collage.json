@@ -48,6 +48,7 @@
         "type": "string",
         "description": "Version names the application's build in the cache version. Empty uses collage's Host.BuildID; see the README for when to set it yourself."
       }
-    }
+    },
+    "additionalProperties": false
   }
 }
