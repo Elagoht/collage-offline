@@ -100,7 +100,7 @@ type Plugin struct {
 func New(opts Options) *Plugin { return &Plugin{opts: opts} }
 
 func (p *Plugin) Name() string                   { return Name }
-func (p *Plugin) Version() string                { return "0.1.3" }
+func (p *Plugin) Version() string                { return "0.1.5" }
 func (p *Plugin) Shutdown(context.Context) error { return nil }
 
 var (
@@ -112,7 +112,8 @@ var (
 // here rather than in Init because the template function has to exist before the
 // templates are parsed, and what it renders depends on the configuration.
 func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
-	if err := host.Config(&p.opts); err != nil {
+	var err error
+	if p.opts, err = collage.PluginConfig(host, p.opts); err != nil {
 		return err
 	}
 	o := &p.opts

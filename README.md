@@ -22,7 +22,7 @@ and the layout registers the worker:
 </head>
 ```
 
-Requires collage v0.24.0 or later. Register it in `Config.Plugins`: it adds a
+Requires collage v0.50.0 or later. Register it in `Config.Plugins`: it adds a
 template function, which only a plugin registered there can. Registering the plugin
 serves `/sw.js`; nothing is installed in a browser until a page renders
 `{{offlineScript}}`.
@@ -160,6 +160,12 @@ only when that copy expires.
   `Cache-Control: no-cache` are set by the server; a static host sends its own.
 
 ## Changes
+
+### v0.1.5
+
+- v0.1.4 was tagged at v0.1.3's commit by mistake and is retracted.
+- Requires collage v0.50.0, whose `collage.PluginConfig` reads the
+  configuration.
 
 ### v0.1.2
 
