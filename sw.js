@@ -21,8 +21,16 @@ function isHashed(url) {
   return HASHED.test(url.pathname);
 }
 
+// under reports whether path is prefix or below it, by whole segments, a
+// trailing slash on prefix or not: "/static" and "/static/" cover "/static" and
+// "/static/app.css", not "/static-x/app.css".
+function under(path, prefix) {
+  const p = prefix.endsWith("/") ? prefix.slice(0, -1) : prefix;
+  return p === "" || path === p || path.startsWith(p + "/");
+}
+
 function isAsset(url) {
-  return isHashed(url) || CONFIG.assets.some((prefix) => url.pathname.startsWith(prefix));
+  return isHashed(url) || CONFIG.assets.some((prefix) => under(url.pathname, prefix));
 }
 
 // A response is kept only when it is a complete, same-origin success that its

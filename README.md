@@ -22,7 +22,7 @@ and the layout registers the worker:
 </head>
 ```
 
-Requires collage v0.50.0 or later. Register it in `Config.Plugins`: it adds a
+Requires collage v0.61.0 or later. Register it in `Config.Plugins`: it adds a
 template function, which only a plugin registered there can. Registering the plugin
 serves `/sw.js`; nothing is installed in a browser until a page renders
 `{{offlineScript}}`.
@@ -63,12 +63,12 @@ opens (`/sw.js` is served `Cache-Control: no-cache` with an `ETag`, so the check
 usually a `304`). The new worker installs, takes over at once, and deletes every
 cache the old one filled.
 
-The build is `Options.Version` when you set it — a release tag, a commit hash from
+The build is `Options.BuildID` (`buildID`) when you set it — a release tag, a commit hash from
 CI — and otherwise collage's own `Host.BuildID`: the application's
 `Config.Cache.Version` when it has one, or a fingerprint of the executable, the
 same value collage namespaces its disk cache by. A new binary is a new build.
 
-Set `Version`, or `Config.Cache.Version` for collage as a whole, when anything that
+Set `buildID`, or `Config.Cache.Version` for collage as a whole, when anything that
 changes what visitors should see is **not** in the binary: templates or static files read from disk rather than embedded. Pages are
 fetched network-first, so they stay fresh whatever the version; what a stale
 version keeps is precached pages and stale-while-revalidate files one visit
@@ -80,7 +80,7 @@ In development `{{offlineScript}}` renders nothing, and `/sw.js` is a worker tha
 deletes what this plugin cached and unregisters itself. A worker answering pages
 from a cache is a live reload that shows the page from before the edit, and a
 browser that once installed the real worker on `localhost` — a production build run
-locally — would otherwise keep it. `InDev` serves the real worker in development
+locally — would otherwise keep it. `inDevelopment` serves the real worker in development
 too, for working on the offline experience itself.
 
 ## Content-Security-Policy
@@ -101,11 +101,11 @@ which works with `elagoht/secure`'s `{{cspNonce}}`. A policy that also restricts
 | --- | --- | --- |
 | `Precache` | none | Paths fetched when the worker installs, so they open offline before anyone visited them |
 | `Fallback` | none | The page shown offline for a page that is not kept. Precached, and required to install |
-| `Assets` | `["/static/"]` | Path prefixes served stale-while-revalidate. An empty list keeps only content-hashed URLs |
-| `MaxPages` | `50` | How many pages the worker keeps. Negative keeps every one |
-| `MaxAssets` | `200` | How many static files the worker keeps. Negative keeps every one |
-| `Version` | collage's build ID | Names the application's build in the cache version; see above |
-| `InDev` | `false` | Serve the real worker, and render `{{offlineScript}}`, in development |
+| `Assets` | `["/static/"]` | Path prefixes served stale-while-revalidate, by whole segments, a trailing `/` or not. An empty list keeps only content-hashed URLs |
+| `MaxPages` | `50` | How many pages the worker keeps. Negative stops the application; for no practical limit, set a large number |
+| `MaxAssets` | `200` | How many static files the worker keeps. Negative stops the application |
+| `BuildID` (`buildID`) | collage's build ID | Names the application's build in the cache version; see above |
+| `InDevelopment` (`inDevelopment`) | `false` | Serve the real worker, and render `{{offlineScript}}`, in development |
 
 Every path must begin with a single `/`. A path on another origin, one of collage's
 `/_collage/` endpoints, and `/sw.js` itself are refused, and the application does
@@ -123,8 +123,8 @@ deciding would mean running its `StaticParams` at every start.
     "assets": ["/static/", "/_bundle/"],
     "maxPages": 100,
     "maxAssets": 300,
-    "version": "2026.09.26",
-    "inDev": false
+    "buildID": "2026.09.26",
+    "inDevelopment": false
   }
 }
 ```
@@ -160,6 +160,24 @@ only when that copy expires.
   `Cache-Control: no-cache` are set by the server; a static host sends its own.
 
 ## Changes
+
+### v0.2.0
+
+Changed in v0.2.0, for the v1 plugin conventions. A renamed key now stops the
+application at start with `unknown key`, where it used to be ignored.
+
+| was | now |
+|---|---|
+| `"version"` / `Options.Version` | `"buildID"` / `Options.BuildID` |
+| `"inDev"` / `Options.InDev` | `"inDevelopment"` / `Options.InDevelopment` |
+| `(*Plugin).CacheVersion()` | removed: read the version from `/sw.js` |
+| `"maxPages": -1`, `"maxAssets": -1` (keep everything) | a large number; a negative cap now stops the application |
+
+- An `assets` prefix covers whole segments, with or without a trailing slash:
+  `"/static"` no longer covers `/static-x/app.css`, and `"/static/"` covers
+  `/static` itself.
+
+- Requires collage v0.61.0.
 
 ### v0.1.5
 

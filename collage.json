@@ -17,25 +17,29 @@
     "properties": {
       "assets": {
         "type": "array",
-        "description": "Assets are the path prefixes of the static files served stale-while-revalidate. Default [\"/static/\"]; an empty list keeps only the content-hashed URLs, which are always cached.",
+        "description": "Assets are the path prefixes of the static files served stale-while-revalidate. Default [\"/static/\"]; an empty list keeps only the content-hashed URLs, which are always cached. A prefix covers whole segments, with or without a trailing slash: \"/static\" covers /static/app.css, not /static-x/app.css.",
         "items": {
           "type": "string"
         }
+      },
+      "buildID": {
+        "type": "string",
+        "description": "BuildID names the application's build in the cache version, in place of collage's Host.BuildID; empty uses that. See the README for when to set it yourself."
       },
       "fallback": {
         "type": "string",
         "description": "Fallback is the path of the page shown for a page that is neither reachable nor kept: \"/offline\". It is precached, and a worker that cannot fetch it does not install. Empty shows the browser's own offline error."
       },
-      "inDev": {
+      "inDevelopment": {
         "type": "boolean",
-        "description": "InDev serves the real worker, and renders {{offlineScript}}, in development too."
+        "description": "InDevelopment serves the real worker, and renders {{offlineScript}}, in development too."
       },
       "maxAssets": {
         "type": "integer"
       },
       "maxPages": {
         "type": "integer",
-        "description": "MaxPages and MaxAssets cap how many responses each cache keeps, dropping the oldest. Default 50 and 200; negative keeps everything."
+        "description": "MaxPages and MaxAssets cap how many responses each cache keeps, dropping the oldest. Zero is the default, 50 and 200; a negative cap stops the application at start. For a cache that is never trimmed in practice, set a large cap."
       },
       "precache": {
         "type": "array",
@@ -43,10 +47,6 @@
         "items": {
           "type": "string"
         }
-      },
-      "version": {
-        "type": "string",
-        "description": "Version names the application's build in the cache version. Empty uses collage's Host.BuildID; see the README for when to set it yourself."
       }
     },
     "additionalProperties": false

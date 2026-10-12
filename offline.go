@@ -73,18 +73,23 @@ type Options struct {
 	Fallback string `json:"fallback"`
 	// Assets are the path prefixes of the static files served
 	// stale-while-revalidate. Default ["/static/"]; an empty list keeps only the
-	// content-hashed URLs, which are always cached.
+	// content-hashed URLs, which are always cached. A prefix covers whole
+	// segments, with or without a trailing slash: "/static" covers
+	// /static/app.css, not /static-x/app.css.
 	Assets []string `json:"assets"`
 	// MaxPages and MaxAssets cap how many responses each cache keeps, dropping
-	// the oldest. Default 50 and 200; negative keeps everything.
+	// the oldest. Zero is the default, 50 and 200; a negative cap stops the
+	// application at start. For a cache that is never trimmed in practice, set a
+	// large cap.
 	MaxPages  int `json:"maxPages"`
 	MaxAssets int `json:"maxAssets"`
-	// Version names the application's build in the cache version. Empty uses
-	// collage's Host.BuildID; see the README for when to set it yourself.
-	Version string `json:"version"`
-	// InDev serves the real worker, and renders {{offlineScript}}, in
+	// BuildID names the application's build in the cache version, in place of
+	// collage's Host.BuildID; empty uses that. See the README for when to set it
+	// yourself.
+	BuildID string `json:"buildID"`
+	// InDevelopment serves the real worker, and renders {{offlineScript}}, in
 	// development too.
-	InDev bool `json:"inDev"`
+	InDevelopment bool `json:"inDevelopment"`
 }
 
 // Plugin serves the service worker.
@@ -100,7 +105,7 @@ type Plugin struct {
 func New(opts Options) *Plugin { return &Plugin{opts: opts} }
 
 func (p *Plugin) Name() string                   { return Name }
-func (p *Plugin) Version() string                { return "0.1.6" }
+func (p *Plugin) Version() string                { return "0.2.0" }
 func (p *Plugin) Shutdown(context.Context) error { return nil }
 
 var (
@@ -126,6 +131,9 @@ func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
 	if o.MaxAssets == 0 {
 		o.MaxAssets = 200
 	}
+	if o.MaxPages < 0 || o.MaxAssets < 0 {
+		return fmt.Errorf("offline: maxPages %d, maxAssets %d: a cap is zero, for the default, or more", o.MaxPages, o.MaxAssets)
+	}
 	if o.Fallback != "" {
 		if err := checkPath("fallback", o.Fallback); err != nil {
 			return err
@@ -141,7 +149,7 @@ func (p *Plugin) Configure(_ context.Context, host collage.ConfigHost) error {
 			return err
 		}
 	}
-	p.active = !host.DevMode() || o.InDev
+	p.active = !host.DevMode() || o.InDevelopment
 	p.configured = true
 	return host.AddTemplateFunc("offlineScript", p.script)
 }
@@ -176,7 +184,7 @@ func (p *Plugin) Init(_ context.Context, host collage.Host) error {
 	if p.active {
 		// collage names the build: Config.Cache.Version, or a fingerprint of the
 		// executable, the same value its disk cache is namespaced by.
-		build := p.opts.Version
+		build := p.opts.BuildID
 		if build == "" {
 			build = host.BuildID()
 		}
@@ -222,13 +230,6 @@ func (p *Plugin) worker(build string) ([]byte, error) {
 	if precache == nil {
 		precache = []string{}
 	}
-	maxPages, maxAssets := o.MaxPages, o.MaxAssets
-	if maxPages < 0 {
-		maxPages = 0
-	}
-	if maxAssets < 0 {
-		maxAssets = 0
-	}
 	config := struct {
 		Version   string   `json:"version"`
 		Precache  []string `json:"precache"`
@@ -236,7 +237,7 @@ func (p *Plugin) worker(build string) ([]byte, error) {
 		Assets    []string `json:"assets"`
 		MaxPages  int      `json:"maxPages"`
 		MaxAssets int      `json:"maxAssets"`
-	}{"", precache, o.Fallback, o.Assets, maxPages, maxAssets}
+	}{"", precache, o.Fallback, o.Assets, o.MaxPages, o.MaxAssets}
 	options, err := json.Marshal(config)
 	if err != nil {
 		return nil, fmt.Errorf("offline: %w", err)
@@ -263,9 +264,9 @@ func (p *Plugin) worker(build string) ([]byte, error) {
 	return []byte(strings.Replace(workerSource, configMarker, string(final), 1)), nil
 }
 
-// CacheVersion is the version the worker names its caches after, or empty in
-// development without InDev, where no caches are made.
-func (p *Plugin) CacheVersion() string { return p.version }
+// cacheVersion is the version the worker names its caches after, or empty in
+// development without InDevelopment, where no caches are made.
+func (p *Plugin) cacheVersion() string { return p.version }
 
 // script is {{offlineScript}}: the registration, or nothing in development. A
 // page with a Content-Security-Policy passes a nonce: {{offlineScript cspNonce}}.

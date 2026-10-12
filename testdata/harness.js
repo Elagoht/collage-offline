@@ -109,6 +109,7 @@ const text = async (res) => (res ? res.text() : null);
   assert.strictEqual(await request("/_collage/reload"), null, "a /_collage/ request was answered");
   assert.strictEqual(await request("https://cdn.example.net/lib.js"), null, "a cross-origin request was answered");
   assert.strictEqual(await request("/api/data"), null, "a non-navigation, non-asset request was answered");
+  assert.strictEqual(await request("/static-x/a.css"), null, "a path that only shares the letters of an asset prefix was answered");
   assert.strictEqual(await request("/static/video.mp4", { headers: { Range: "bytes=0-9" } }), null, "a range request was answered");
 
   // Pages: network first, the kept copy offline, then the fallback.
