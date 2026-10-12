@@ -291,11 +291,7 @@ func TestFallbackUnderAParameter(t *testing.T) {
 func TestStaticBuild(t *testing.T) {
 	app := mustSite(t, offline.New(offline.Options{Fallback: "/offline", Version: "1"}), setup{})
 	out := t.TempDir()
-	b, err := collage.NewBuilder(app, collage.BuildOptions{OutDir: out})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := b.Build(context.Background()); err != nil {
+	if _, err := collage.Build(context.Background(), app, collage.BuildOptions{OutDir: out}); err != nil {
 		t.Fatal(err)
 	}
 	built, err := os.ReadFile(filepath.Join(out, "sw.js"))

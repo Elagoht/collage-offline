@@ -8,6 +8,6 @@ module github.com/Elagoht/collage-offline
 
 go 1.26
 
-require github.com/Elagoht/collage v0.50.0
+require github.com/Elagoht/collage v0.60.0
 
 retract v0.1.4 // tagged at v0.1.3's commit by mistake
