@@ -34,15 +34,28 @@ function isAsset(url) {
 }
 
 // A response is kept only when it is a complete, same-origin success that its
-// server allowed to be stored. collage marks a page holding one reader's data —
-// a form's token, a preview — "no-store", and a copy of it has no business being
-// shown later, perhaps to somebody else at the same device.
+// server allowed to be stored, and allowed a shared copy of. A page marked
+// "no-store" — a form's token, a preview — may not be kept at all. A page marked
+// "private" is one reader's: collage marks a guarded page "private, no-cache" so
+// a browser may keep it and ask again, a request the guard then answers, and
+// basicauth marks its pages "private" too. This worker answers offline without
+// asking anybody, so it keeps neither: a copy would be shown with no guard in
+// the way, perhaps to somebody else at the same device after a logout.
 function storable(response) {
   if (!response || !response.ok || response.status !== 200 || response.type !== "basic" || response.redirected) {
     return false;
   }
+  return !personal(response);
+}
+
+// personal reports whether a response's Cache-Control carries "no-store" or
+// "private", in any case, with or without a field list ("private=Set-Cookie").
+function personal(response) {
   const control = response.headers.get("Cache-Control") || "";
-  return !/no-store/i.test(control);
+  return control.split(",").some((directive) => {
+    const name = directive.split("=")[0].trim().toLowerCase();
+    return name === "no-store" || name === "private";
+  });
 }
 
 // trim keeps a cache to its most recent entries. Cache keys come back in
@@ -77,7 +90,17 @@ self.addEventListener("install", (event) => {
     await Promise.all(CONFIG.precache.map(async (path) => {
       try {
         const url = new URL(path, self.location.origin);
-        await (isAsset(url) ? assets : pages).add(new Request(url, { cache: "reload" }));
+        // A precached path that turns out to be private or no-store is not
+        // kept, by the same rule as a page read later.
+        const request = new Request(url, { cache: "reload" });
+        const response = await fetch(request);
+        if (!response.ok) {
+          throw new TypeError("status " + response.status);
+        }
+        if (personal(response)) {
+          throw new TypeError("marked private or no-store");
+        }
+        await (isAsset(url) ? assets : pages).put(request, response);
       } catch (err) {
         console.warn("collage-offline: could not precache " + path, err);
       }

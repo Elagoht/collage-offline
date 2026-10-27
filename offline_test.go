@@ -339,7 +339,7 @@ func TestWorkerBehaviour(t *testing.T) {
 		t.Skip("node is not installed")
 	}
 	// "/static", without its slash: a prefix covers whole segments either way.
-	app := mustSite(t, offline.New(offline.Options{Precache: []string{"/", "/static/app.css"}, Fallback: "/offline", Assets: []string{"/static"}, BuildID: "1"}), setup{})
+	app := mustSite(t, offline.New(offline.Options{Precache: []string{"/", "/static/app.css", "/account"}, Fallback: "/offline", Assets: []string{"/static"}, BuildID: "1"}), setup{})
 	file := filepath.Join(t.TempDir(), "sw.js")
 	if err := os.WriteFile(file, get(app, "/sw.js").Body.Bytes(), 0o600); err != nil {
 		t.Fatal(err)
@@ -347,4 +347,59 @@ func TestWorkerBehaviour(t *testing.T) {
 	if out, err := exec.Command(node, filepath.Join("testdata", "harness.js"), file).CombinedOutput(); err != nil {
 		t.Errorf("%v\n%s", err, out)
 	}
+}
+
+// A guarded page is personal: collage marks it "private, no-cache" so the browser
+// may keep it and revalidate, a request that meets the guard. The worker answers
+// offline without asking the server, so it must not keep such a page, or the next
+// person at the device reads it with no guard in the way (audit PLUGB-01).
+func TestWorkerRefusesAGuardedPage(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node is not installed")
+	}
+	signedIn := func(_ context.Context, r *http.Request) (*collage.GuardDecision, error) {
+		if r.Header.Get("Cookie") == "session=alice" {
+			return nil, nil
+		}
+		return &collage.GuardDecision{Status: http.StatusForbidden}, nil
+	}
+	account := collage.NewPage("account").
+		WithContent(collage.NewFragment("account", "p.html").WithGuard(signedIn).Build()).
+		WithPath("en", "/account").
+		Build()
+	app := mustSite(t, offline.New(offline.Options{}), setup{pages: []collage.Registrable{account}})
+	if app.DevMode() {
+		t.Fatal("want production mode")
+	}
+	page := get(app, "/account", "Cookie", "session=alice")
+	if page.Code != http.StatusOK {
+		t.Fatalf("/account = %d", page.Code)
+	}
+	control := page.Header().Get("Cache-Control")
+	if !strings.Contains(control, "private") {
+		t.Fatalf("a guarded page is %q; the test expects collage to mark it private", control)
+	}
+	worker := get(app, "/sw.js").Body.String()
+	script := jsFunction(t, worker, "storable") + jsFunction(t, worker, "personal") + `
+const headers = new Headers({"Cache-Control": process.argv[1]});
+console.log(storable({ok: true, status: 200, type: "basic", redirected: false, headers}));`
+	out, err := exec.Command(node, "-e", script, control).CombinedOutput()
+	if err != nil {
+		t.Fatalf("node: %v\n%s", err, out)
+	}
+	if got := strings.TrimSpace(string(out)); got != "false" {
+		t.Errorf("storable(%q) = %s, want false: the worker would serve a guarded page offline", control, got)
+	}
+}
+
+// jsFunction is the source of the worker's top-level function name.
+func jsFunction(t *testing.T, worker, name string) string {
+	t.Helper()
+	start := strings.Index(worker, "\nfunction "+name+"(")
+	if start < 0 {
+		t.Fatalf("no %s() in the worker", name)
+	}
+	end := strings.Index(worker[start:], "\n}\n")
+	return worker[start : start+end+3]
 }

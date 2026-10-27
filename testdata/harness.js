@@ -18,6 +18,10 @@ const routes = {
   "/offline": { body: "offline page" },
   "/about": { body: "about" },
   "/private": { body: "yours only", headers: { "Cache-Control": "private, no-store" } },
+  // A guarded page (core) and a basic-auth page: private, but not no-store.
+  "/account": { body: "alice's account", headers: { "Cache-Control": "private, no-cache" } },
+  "/admin": { body: "admin data", headers: { "Cache-Control": "private, max-age=0, must-revalidate" } },
+  "/PRIVATE-case": { body: "upper case", headers: { "Cache-Control": "Private" } },
   "/static/app.css": { body: "css v1" },
   "/static/app.0123456789abcdef.css": { body: "hashed css" },
 };
@@ -102,6 +106,7 @@ const text = async (res) => (res ? res.text() : null);
   assert(names.includes("someone-elses-cache"), "activate deleted a cache that is not the worker's");
   assert(await caches.match("/offline"), "the fallback was not precached");
   assert(await caches.match("/"), "/ was not precached");
+  assert(!(await caches.match("/account")), "a private page was precached");
   assert(names.some((n) => n.startsWith("collage-offline-assets-")), "no asset cache");
 
   // Left to the browser.
@@ -115,6 +120,9 @@ const text = async (res) => (res ? res.text() : null);
   // Pages: network first, the kept copy offline, then the fallback.
   assert.strictEqual(await text(await request("/about", { mode: "navigate" })), "about");
   assert.strictEqual(await text(await request("/private", { mode: "navigate" })), "yours only");
+  assert.strictEqual(await text(await request("/account", { mode: "navigate" })), "alice's account");
+  assert.strictEqual(await text(await request("/admin", { mode: "navigate" })), "admin data");
+  assert.strictEqual(await text(await request("/PRIVATE-case", { mode: "navigate" })), "upper case");
   routes["/about"].body = "about v2";
   assert.strictEqual(await text(await request("/about", { mode: "navigate" })), "about v2", "online, the network was not asked first");
   await request("/static/app.0123456789abcdef.css");
@@ -122,6 +130,9 @@ const text = async (res) => (res ? res.text() : null);
   assert.strictEqual(await text(await request("/about", { mode: "navigate" })), "about v2", "offline, the kept page was not served");
   assert.strictEqual(await text(await request("/never-visited", { mode: "navigate" })), "offline page", "offline, the fallback was not served");
   assert.strictEqual(await text(await request("/private", { mode: "navigate" })), "offline page", "a no-store page was kept");
+  assert.strictEqual(await text(await request("/account", { mode: "navigate" })), "offline page", "a private (guarded) page was kept");
+  assert.strictEqual(await text(await request("/admin", { mode: "navigate" })), "offline page", "a private (basic-auth) page was kept");
+  assert.strictEqual(await text(await request("/PRIVATE-case", { mode: "navigate" })), "offline page", "an upper-case Private page was kept");
 
   // Assets: stale-while-revalidate, and a hashed name from the cache alone.
   assert.strictEqual(await text(await request("/static/app.css")), "css v1", "offline, a precached asset was not served");

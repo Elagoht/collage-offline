@@ -38,11 +38,20 @@ serves `/sw.js`; nothing is installed in a browser until a page renders
 | Any other same-origin `GET` — an API, a JSON document | Left to the browser, untouched |
 
 A response is kept only when it is a complete `200` from the site's own origin,
-not reached through a redirect, and not marked `no-store`. collage marks a page
-holding one reader's data that way — a form's forgery token, a preview, a page
-whose middleware called `collage.SkipCache` — and a copy of such a page has no
-business being shown later, perhaps to somebody else at the same device. Offline,
-such a page shows the fallback.
+not reached through a redirect, and marked neither `no-store` nor `private`.
+collage marks a page holding one reader's data that way: a form's forgery token, a
+preview, a page whose middleware called `collage.SkipCache` are `no-store`; a
+guarded page (`WithGuard`) is `private, no-cache`, and basicauth marks its pages
+`private`. A browser may keep a `private` page because it asks the server again
+before showing it, and that request meets the guard; this worker answers offline
+without asking anybody, so it keeps no such page — a copy would be shown with no
+guard in the way, perhaps to somebody else at the same device after a logout.
+Offline, such a page shows the fallback. A `Precache` path marked either way is not
+kept either.
+
+Nothing is cleared on logout: the worker never kept a personal page, so there is
+nothing of one reader's to clear. A page of your own that holds one reader's data
+must say so with `Cache-Control: private` or `no-store`, as collage's own do.
 
 When the worker installs it fetches the `Fallback` page and every `Precache` path.
 The fallback must arrive, or the worker does not install and the previous one stays
@@ -160,6 +169,15 @@ only when that copy expires.
   `Cache-Control: no-cache` are set by the server; a static host sends its own.
 
 ## Changes
+
+### v0.2.1
+
+Changed in v0.2.1: the worker no longer keeps a page marked `Cache-Control:
+private` — a guarded page, a basicauth page — and no longer precaches one. Up to
+v0.2.0 such a page was kept and shown offline to whoever used the device, with
+no guard asked (audit PLUGB-01). The cache version changes with the plugin's
+version, so the first visit after the upgrade drops every page the old worker
+kept. Nothing to change in the configuration.
 
 ### v0.2.0
 
